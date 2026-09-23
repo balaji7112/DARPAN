@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OORJA-SYNC | Energy Intelligence Platform</title>
+    <meta name="description" content="OORJA-SYNC — Renewable energy digital twin platform." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Critical inline: branded loading state so there is NEVER a blank screen -->
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        background: linear-gradient(160deg, #EBF4FF 0%, #F0F9FF 40%, #E8F5E9 100%);
+        color: #111827;
+        font-family: 'Inter', system-ui, sans-serif;
+        overflow-x: hidden;
+        min-height: 100dvh;
+      }
+      #root { min-height: 100dvh; }
+
+      /* Branded first-paint loader — hidden once React mounts */
+      #os-preload {
+        position: fixed; inset: 0; z-index: 9999;
+        background: linear-gradient(160deg, #EBF4FF 0%, #F0F9FF 40%, #E8F5E9 100%);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 18px; font-family: 'Inter', system-ui, sans-serif;
+        transition: opacity 0.3s ease;
+      }
+      #os-preload .mark {
+        width: 52px; height: 52px; border-radius: 14px;
+        background: linear-gradient(135deg, #6366F1 0%, #3B82F6 100%);
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 8px 24px rgba(99,102,241,0.25);
+        animation: osp-pulse 2s ease-in-out infinite;
+      }
+      #os-preload h1 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 800; font-size: 1.1rem;
+        color: #1E3A5F; letter-spacing: -0.02em;
+      }
+      #os-preload p { font-size: 0.72rem; color: #64748B; }
+      .osp-dots { display: flex; gap: 6px; }
+      .osp-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: #6366F1;
+      }
+      .osp-dot:nth-child(1) { animation: osp-b 1.2s ease-in-out 0s infinite; }
+      .osp-dot:nth-child(2) { animation: osp-b 1.2s ease-in-out 0.2s infinite; }
+      .osp-dot:nth-child(3) { animation: osp-b 1.2s ease-in-out 0.4s infinite; }
+      @keyframes osp-pulse {
+        0%,100% { transform: scale(1); box-shadow: 0 8px 24px rgba(99,102,241,0.25); }
+        50%      { transform: scale(1.05); box-shadow: 0 10px 30px rgba(99,102,241,0.38); }
+      }
+      @keyframes osp-b {
+        0%,100% { transform: translateY(0); opacity: 0.4; }
+        50%      { transform: translateY(-6px); opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #os-preload .mark, .osp-dot { animation: none !important; }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-DO-fNLcu.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Do03HVNJ.css">
+  </head>
+  <body>
+    <!-- Branded preload screen — React removes it on mount -->
+    <div id="os-preload" aria-hidden="true">
+      <div class="mark">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <div style="text-align:center">
+        <h1>OORJA-SYNC</h1>
+        <p>Energy Intelligence Platform</p>
+      </div>
+      <div class="osp-dots">
+        <div class="osp-dot"></div>
+        <div class="osp-dot"></div>
+        <div class="osp-dot"></div>
+      </div>
+    </div>
+
+    <div id="root"></div>
+    <!-- Remove preload screen once React has mounted -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        var el = document.getElementById('os-preload');
+        if (el) {
+          // Give React a moment to hydrate, then fade out
+          setTimeout(function() {
+            el.style.opacity = '0';
+            setTimeout(function() { el.remove(); }, 320);
+          }, 200);
+        }
+      });
+    </script>
+  </body>
+</html>
