@@ -1,144 +1,113 @@
-import React, { useState, useEffect } from 'react';
-import { useUIStore } from '../../store/uiStore';
-import { useEnergyStore } from '../../store/energyStore';
-import { Bell, Search, WifiOff, Menu } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, Bell, Moon, Sun, Bot, Search, Pause, Play, LogOut, ChevronDown } from 'lucide-react';
+import { useUI } from '../../store/uiStore';
+import { useGrid, SPEEDS } from '../../store/gridStore';
+import { useAuth } from '../../auth/AuthContext';
+import { NAV } from './nav';
+import { cx } from '../ui/kit';
 
-function LiveClock() {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+function SimClock() {
+  const simTime = useGrid(s => s.snap.simTime);
+  const speedMin = useGrid(s => s.speedMin);
+  const running = useGrid(s => s.running);
+  const setSpeed = useGrid(s => s.setSpeed);
+  const setRunning = useGrid(s => s.setRunning);
+  const { can } = useAuth();
+  const allowed = can('sim_control');
+  const d = new Date(simTime);
+
   return (
-    <span style={{ color: '#6B7280', fontSize: '0.8rem', fontFamily: 'Space Grotesk, monospace', fontWeight: 500 }}>
-      {time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
-    </span>
+    <div className="flex items-center gap-1.5 rounded-lg border border-line bg-surface2/60 pl-2.5 pr-1 py-1">
+      <span className={cx('h-1.5 w-1.5 rounded-full', running ? 'bg-ok pulse-dot' : 'bg-warn')} />
+      <span className="font-mono text-xs num whitespace-nowrap">
+        <span className="hidden sm:inline">{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} </span>
+        <b className="text-fg">{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })}</b>
+      </span>
+      <select
+        aria-label="Simulation speed" disabled={!allowed} title={allowed ? 'Simulation speed' : 'Admin only'}
+        value={speedMin} onChange={e => setSpeed(Number(e.target.value))}
+        className="bg-transparent text-xs text-muted border-0 focus:ring-0 cursor-pointer disabled:cursor-default pr-0 hidden sm:block"
+      >
+        {SPEEDS.map(s => <option key={s.label} value={s.minutes} className="bg-surface text-fg">{s.label}</option>)}
+      </select>
+      <button onClick={() => setRunning(!running)} disabled={!allowed} title={allowed ? (running ? 'Pause' : 'Resume') : 'Admin only'}
+        className="p-1 rounded text-muted hover:text-fg disabled:opacity-40" aria-label={running ? 'Pause simulation' : 'Resume simulation'}>
+        {running ? <Pause size={13} /> : <Play size={13} />}
+      </button>
+    </div>
+  );
+}
+
+function UserMenu() {
+  const { session, logout } = useAuth();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  if (!session) return null;
+  const initials = session.name.split(' ').map(w => w[0]).join('').slice(0, 2);
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(v => !v)} className="flex items-center gap-2 rounded-lg p-1 hover:bg-surface2" aria-haspopup="menu" aria-expanded={open}>
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-primary/15 text-primary text-xs font-bold">{initials}</span>
+        <span className="hidden md:block text-left leading-tight">
+          <span className="block text-xs font-medium">{session.name}</span>
+          <span className="block text-[10px] text-muted">{session.role}</span>
+        </span>
+        <ChevronDown size={14} className="hidden md:block text-muted" />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 mt-2 w-56 card shadow-xl p-1.5 z-50 fade-up">
+          <div className="px-3 py-2 border-b border-line mb-1">
+            <div className="text-sm font-medium">{session.name}</div>
+            <div className="text-xs text-muted">{session.email}</div>
+            <div className="mt-1 inline-block rounded bg-primary/10 text-primary text-[10px] font-semibold px-1.5 py-0.5">{session.role}</div>
+          </div>
+          <button role="menuitem" onClick={() => { logout(); navigate('/login', { replace: true }); }} className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm text-crit hover:bg-crit/10">
+            <LogOut size={15} /> Sign out
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function TopBar() {
-  const { toggleSidebar, notifications, markAllRead, setCommandPaletteOpen } = useUIStore();
-  const { mode, systemOnline } = useEnergyStore();
-  const [notifOpen, setNotifOpen] = useState(false);
-  const unread = notifications.filter(n => !n.read).length;
+  const setMobileNavOpen = useUI(s => s.setMobileNavOpen);
+  const setPalette = useUI(s => s.setCommandPaletteOpen);
+  const setCopilot = useUI(s => s.setCopilotOpen);
+  const theme = useUI(s => s.theme);
+  const toggleTheme = useUI(s => s.toggleTheme);
+  const activeAlerts = useGrid(s => s.alerts.filter(a => a.status === 'active').length);
+  const { pathname } = useLocation();
+  const title = NAV.find(n => pathname.startsWith(n.to))?.label ?? 'DARPAN';
 
   return (
-    <header style={{
-      height: 56, background: '#FFFFFF',
-      borderBottom: '1px solid #E5E7EB',
-      display: 'flex', alignItems: 'center',
-      padding: '0 20px', gap: 14, flexShrink: 0,
-      zIndex: 100,
-    }}>
-      {/* Menu toggle */}
-      <button
-        onClick={toggleSidebar} title="Toggle sidebar"
-        style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', borderRadius: 6, transition: 'color 0.15s' }}
-        onMouseEnter={e => (e.currentTarget.style.color = '#111827')}
-        onMouseLeave={e => (e.currentTarget.style.color = '#6B7280')}
-      >
-        <Menu size={18} />
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-2 sm:gap-3 border-b border-line bg-surface/85 backdrop-blur px-3 sm:px-5">
+      <button onClick={() => setMobileNavOpen(true)} className="lg:hidden p-1.5 rounded-lg text-muted hover:bg-surface2 hover:text-fg" aria-label="Open menu"><Menu size={20} /></button>
+      <div className="font-display font-semibold truncate">{title}</div>
+      <span className="hidden md:inline-flex items-center rounded-md border border-warn/30 bg-warn/10 px-1.5 py-0.5 text-[10px] font-semibold text-warn">SIMULATED</span>
+      <div className="flex-1" />
+      <SimClock />
+      <button onClick={() => setPalette(true)} className="hidden md:flex items-center gap-2 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted hover:text-fg hover:border-primary/40" aria-label="Search">
+        <Search size={14} /> Search <kbd className="rounded bg-surface2 px-1 text-[10px]">⌘K</kbd>
       </button>
-
-      {/* Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: '#DCEFFA', border: '1px solid #B8D8EF', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-          <img src="/darpan-logo.png" alt="DARPAN" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
-        <span style={{ fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: '0.92rem', color: '#111827', letterSpacing: '-0.01em' }}>
-          DARPAN
-        </span>
-      </div>
-
-      {/* Mode badge — subtle, no SIH text */}
-      <div style={{ background: mode === 'DEMO' ? '#FEF3C7' : '#ECFDF5', border: `1px solid ${mode === 'DEMO' ? '#FDE68A' : '#A7F3D0'}`, borderRadius: 4, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 600, color: mode === 'DEMO' ? '#92400E' : '#065F46' }}>
-        {mode}
-      </div>
-
-      <div style={{ flex: 1 }} />
-
-      {/* Campus label */}
-      <span style={{ color: '#9CA3AF', fontSize: '0.78rem', fontWeight: 400 }}>Smart Campus, Bhopal</span>
-
-      <div style={{ width: 1, height: 20, background: '#E5E7EB' }} />
-
-      {/* System status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {systemOnline ? (
-          <>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981', animation: 'pulse-dot 2s infinite' }} />
-            <span style={{ color: '#059669', fontSize: '0.73rem', fontWeight: 600 }}>ONLINE</span>
-          </>
-        ) : (
-          <>
-            <WifiOff size={12} color="#EF4444" />
-            <span style={{ color: '#EF4444', fontSize: '0.73rem', fontWeight: 600 }}>OFFLINE</span>
-          </>
-        )}
-      </div>
-
-      <LiveClock />
-
-      {/* Search */}
-      <button
-        onClick={() => setCommandPaletteOpen(true)} title="Search (Ctrl+K)"
-        style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '5px 12px', color: '#6B7280', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.15s' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#111827'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#E5E7EB'; (e.currentTarget as HTMLButtonElement).style.color = '#6B7280'; }}
-      >
-        <Search size={12} />
-        <span>Search</span>
-        <span style={{ fontSize: '0.63rem', color: '#9CA3AF', marginLeft: 4, background: '#F3F4F6', borderRadius: 3, padding: '1px 4px' }}>Ctrl+K</span>
+      <button onClick={toggleTheme} className="p-2 rounded-lg text-muted hover:bg-surface2 hover:text-fg" aria-label="Toggle theme" title="Toggle theme">
+        {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
       </button>
-
-      {/* Notifications */}
-      <div style={{ position: 'relative' }}>
-        <button
-          onClick={() => setNotifOpen(v => !v)} title="Notifications"
-          style={{ position: 'relative', background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#111827')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#6B7280')}
-        >
-          <Bell size={17} />
-          {unread > 0 && (
-            <div style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: '50%', background: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff' }}>
-              {unread}
-            </div>
-          )}
-        </button>
-
-        <AnimatePresence>
-          {notifOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.97 }}
-              transition={{ duration: 0.16 }}
-              style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 320, maxHeight: 400, overflowY: 'auto', background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
-              className="styled-scroll"
-            >
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#111827' }}>Notifications</span>
-                <button onClick={markAllRead} style={{ background: 'none', border: 'none', color: '#6366F1', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 500 }}>Mark all read</button>
-              </div>
-              {notifications.length === 0 && <div style={{ padding: '20px 16px', color: '#9CA3AF', fontSize: '0.8rem', textAlign: 'center' }}>No notifications</div>}
-              {notifications.map(n => (
-                <div key={n.id} style={{ padding: '10px 16px', borderBottom: '1px solid #F9FAFB', background: n.read ? '#fff' : '#F5F3FF' }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', marginTop: 5, flexShrink: 0, background: n.type === 'critical' ? '#EF4444' : n.type === 'warning' ? '#F59E0B' : n.type === 'success' ? '#10B981' : '#6366F1' }} />
-                    <div>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 2, color: '#111827' }}>{n.title}</div>
-                      <div style={{ fontSize: '0.73rem', color: '#6B7280', lineHeight: 1.5 }}>{n.message}</div>
-                      <div style={{ fontSize: '0.65rem', color: '#9CA3AF', marginTop: 4 }}>{new Date(n.timestamp).toLocaleTimeString()}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <Link to="/early-warning" className="relative p-2 rounded-lg text-muted hover:bg-surface2 hover:text-fg" aria-label={`${activeAlerts} active alerts`}>
+        <Bell size={17} />
+        {activeAlerts > 0 && <span className="absolute top-1 right-1 grid h-4 min-w-4 place-items-center rounded-full bg-crit px-1 text-[9px] font-bold text-white">{activeAlerts}</span>}
+      </Link>
+      <button onClick={() => setCopilot(true)} className="hidden sm:flex btn-primary py-1.5" aria-label="Open AI copilot">
+        <Bot size={15} /> <span className="hidden md:inline">Copilot</span>
+      </button>
+      <UserMenu />
     </header>
   );
 }

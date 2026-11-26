@@ -1,337 +1,182 @@
-import React, { useState, useMemo } from 'react';
-import { useEnergyStore } from '../../store/energyStore';
-import GlassCard from '../../components/ui/GlassCard';
-import KPICard from '../../components/ui/KPICard';
-import { ShieldAlert, Play, RotateCcw, AlertTriangle, Zap, Sun, Battery } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ShieldAlert, CheckCircle2, Eye, Zap, RotateCcw, Lock, Cpu } from 'lucide-react';
+import { useGrid } from '../../store/gridStore';
+import { useAuth } from '../../auth/AuthContext';
+import { FAULTS, expectedDemand, expectedSolar } from '../../sim/model';
+import { severityRank, anomalyScore, type Severity } from '../../sim/alerts';
+import { fetchAnomaly, ML_ENABLED } from '../../lib/mlClient';
+import { Card, Stat, Bar, Pill, PageHeader, SeverityBadge, StatusBadge, Empty, fmtTime, cx } from '../../components/ui/kit';
 
-// ── Severity colour map ────────────────────────────────────────────────
-const sevColor: Record<string, string> = {
-  LOW: '#91AAA2', MEDIUM: '#FFB84D', HIGH: '#FF8A3D', CRITICAL: '#FF5A5A',
-};
-const sevBg: Record<string, string> = {
-  LOW: 'rgba(145,170,162,0.08)', MEDIUM: 'rgba(255,184,77,0.08)',
-  HIGH: 'rgba(255,138,61,0.08)', CRITICAL: 'rgba(255,90,90,0.08)',
-};
+type StatusFilter = 'open' | 'all' | 'resolved';
 
-// ── Risk colours by scenario impact ───────────────────────────────────
-const RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
-
-// ── Scenario definitions ───────────────────────────────────────────────
-const SCENARIOS = [
-  {
-    id: 'cloud-event', label: '☁️ Cloud Cover Event',
-    desc: 'Simulates 80% cloud cover — solar output drops ~65%',
-    fault: 'CLOUD_COVER' as const,
-    risk: 'HIGH',
-    impact: 'Solar drops ~65%. Battery covers gap for ~3 hrs. Grid import rises sharply.',
-    recommendation: 'Pre-charge battery. Alert demand response. Switch non-critical loads to off-peak.',
-  },
-  {
-    id: 'panel-dust', label: '🌫️ Panel Soiling',
-    desc: 'Reduces solar efficiency by 38% due to dust accumulation',
-    fault: 'SOLAR_DUST' as const,
-    risk: 'MEDIUM',
-    impact: 'Gradual 38% output loss. Renewable share falls. Minor grid compensation needed.',
-    recommendation: 'Schedule immediate panel cleaning. Monitor efficiency trend daily.',
-  },
-  {
-    id: 'bat-heat', label: '🌡️ Battery Overheating',
-    desc: 'Battery temp rises to 42°C — triggers HOLD action',
-    fault: 'BATTERY_HEATING' as const,
-    risk: 'CRITICAL',
-    impact: 'Battery charge/discharge suspended. No storage buffer. Grid dependency spikes.',
-    recommendation: 'Activate thermal cooling immediately. Reduce ambient temperature. Limit charge rate.',
-  },
-  {
-    id: 'load-spike', label: '⚡ Demand Spike',
-    desc: 'Computer Lab draws 2× normal load — anomaly detected',
-    fault: 'LAB_LOAD_SPIKE' as const,
-    risk: 'HIGH',
-    impact: 'Campus demand peaks 40% above forecast. Battery discharges rapidly. Grid import increases.',
-    recommendation: 'Enable demand response. Curtail EV charging. Alert facilities manager.',
-  },
-  {
-    id: 'demand', label: '📈 High Demand Day',
-    desc: 'All buildings at peak occupancy — 40% load increase',
-    fault: 'INCREASE_DEMAND' as const,
-    risk: 'MEDIUM',
-    impact: 'Total load exceeds solar + storage capacity. Grid becomes primary supply.',
-    recommendation: 'Pre-schedule battery charging overnight. Stagger high-load activities.',
-  },
-  {
-    id: 'sensor', label: '🔌 Sensor Offline',
-    desc: 'Lab power meter disconnects — triggers fallback estimation',
-    fault: 'SENSOR_DISCONNECT' as const,
-    risk: 'LOW',
-    impact: 'One zone loses accurate metering. Estimation fallback active. Data quality drops.',
-    recommendation: 'Send maintenance ticket. Use adjacent sensor data for interpolation.',
-  },
-];
-
-// ── Step indicator ─────────────────────────────────────────────────────
-function FlowStep({ number, label, active }: { number: number; label: string; active?: boolean }) {
+function FaultPanel() {
+  const { can } = useAuth();
+  const allowed = can('inject_faults');
+  const faults = useGrid(s => s.snap.faults);
+  const inject = useGrid(s => s.injectFault);
+  const clear = useGrid(s => s.clearFaults);
+  const reset = useGrid(s => s.reset);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <div style={{
-        width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-        background: active ? 'var(--color-primary)' : 'rgba(255,255,255,0.06)',
-        border: `1px solid ${active ? 'var(--color-primary)' : 'rgba(255,255,255,0.12)'}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '0.65rem', fontWeight: 700,
-        color: active ? '#07110F' : 'var(--text-muted)',
-      }}>{number}</div>
-      <span style={{ fontSize: '0.72rem', fontWeight: active ? 700 : 400, color: active ? 'var(--color-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</span>
-    </div>
+    <Card title="Scenario & fault injection" subtitle="Stress-test the AI control and early-warning layer"
+      action={!allowed && <Pill><Lock size={11} /> Admin only</Pill>}>
+      <div className="grid grid-cols-2 gap-2">
+        {FAULTS.map(f => {
+          const active = faults.find(x => x.id === f.id);
+          return (
+            <button key={f.id} disabled={!allowed} onClick={() => inject(f.id)} title={f.description}
+              className={cx('rounded-lg border p-2.5 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                active ? 'border-crit/60 bg-crit/10' : 'border-line hover:border-primary/50 hover:bg-surface2')}>
+              <div className="flex items-center gap-1.5 text-xs font-semibold"><Zap size={12} className={active ? 'text-crit' : 'text-muted'} />{f.label}</div>
+              <div className="mt-0.5 text-[10px] text-muted leading-snug">{active ? `Active · ${active.ticksLeft} ticks left` : f.description}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button disabled={!allowed || faults.length === 0} onClick={clear} className="btn-ghost flex-1">Clear faults</button>
+        <button disabled={!allowed} onClick={reset} className="btn-ghost flex-1"><RotateCcw size={14} /> Reset sim</button>
+      </div>
+    </Card>
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────
-export default function EarlyWarningPage() {
-  const { anomalies, injectFault, activeFault, solar, battery, totalLoad, gridDependency } = useEnergyStore();
-  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+function AnomalyScorePanel() {
+  const s = useGrid(st => st.snap);
+  const tick = useGrid(st => st.tick);
+  const features = useMemo(() => {
+    const expD = expectedDemand(s.simTime), expS = expectedSolar(s.simTime);
+    return {
+      frequency: s.frequency, voltage_kv: s.hvac.voltageKV,
+      demand_residual_pct: ((s.demand - expD) / expD) * 100,
+      solar_residual_pct: expS > 50 ? ((s.gen.solar - expS) / expS) * 100 : 0,
+      hvac_loading: s.hvac.loading,
+    };
+  }, [s]);
+  // Client-side fallback: worst standardised residual → Isolation-Forest-style score
+  const z = Math.max(Math.abs(features.frequency - 50) / 0.04, Math.abs(features.voltage_kv - 400) / 6, Math.abs(features.demand_residual_pct) / 2.5, features.solar_residual_pct < 0 ? -features.solar_residual_pct / 12 : 0);
+  const clientScore = anomalyScore(z);
+  const [ml, setMl] = useState<{ score: number; model: string } | null>(null);
 
-  const activeScenario = useMemo(
-    () => SCENARIOS.find(s => s.id === activeScenarioId) ?? null,
-    [activeScenarioId]
+  useEffect(() => {
+    if (!ML_ENABLED || tick % 3 !== 0) return;
+    let cancelled = false;
+    fetchAnomaly(features).then(r => { if (!cancelled) setMl(r); });
+    return () => { cancelled = true; };
+  }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const score = ml?.score ?? clientScore;
+  const tone = score > 0.7 ? 'crit' : score > 0.45 ? 'warn' : 'ok';
+  return (
+    <Card title="Live anomaly score" subtitle={ml ? `${ml.model} · ML service` : 'Isolation-Forest-style score · client fallback'} action={<Cpu size={16} className="text-muted" />}>
+      <div className="flex items-end gap-2">
+        <span className={cx('font-display text-4xl font-semibold num', `text-${tone}`)}>{score.toFixed(2)}</span>
+        <span className="text-xs text-muted mb-1.5">0 normal → 1 anomalous</span>
+      </div>
+      <Bar value={score * 100} color={`rgb(var(--${tone}))`} className="mt-2 h-2" />
+      <dl className="mt-3 grid grid-cols-2 gap-1.5 text-[11px]">
+        {[
+          ['Frequency', `${features.frequency.toFixed(3)} Hz`],
+          ['Voltage', `${features.voltage_kv.toFixed(1)} kV`],
+          ['Demand residual', `${features.demand_residual_pct.toFixed(1)}%`],
+          ['Solar residual', `${features.solar_residual_pct.toFixed(1)}%`],
+        ].map(([k, v]) => <div key={k} className="flex justify-between rounded bg-surface2 px-2 py-1"><dt className="text-muted">{k}</dt><dd className="num">{v}</dd></div>)}
+      </dl>
+    </Card>
   );
+}
 
-  const runScenario = (s: typeof SCENARIOS[0]) => {
-    setActiveScenarioId(s.id);
-    injectFault(s.fault);
+export default function EarlyWarningPage() {
+  const alerts = useGrid(s => s.alerts);
+  const acknowledge = useGrid(s => s.acknowledge);
+  const resolve = useGrid(s => s.resolve);
+  const { session, can } = useAuth();
+  const [status, setStatus] = useState<StatusFilter>('open');
+  const [sev, setSev] = useState<Severity | 'all'>('all');
+
+  const counts = {
+    active: alerts.filter(a => a.status === 'active').length,
+    ack: alerts.filter(a => a.status === 'acknowledged').length,
+    resolved: alerts.filter(a => a.status === 'resolved').length,
+    critical: alerts.filter(a => a.status !== 'resolved' && a.severity === 'critical').length,
   };
 
-  const reset = () => {
-    setActiveScenarioId(null);
-    injectFault('RESET');
-  };
+  const list = alerts
+    .filter(a => (status === 'all' ? true : status === 'open' ? a.status !== 'resolved' : a.status === 'resolved'))
+    .filter(a => (sev === 'all' ? true : a.severity === sev))
+    .sort((a, b) => (a.status === 'resolved') === (b.status === 'resolved') ? severityRank(b.severity) - severityRank(a.severity) || b.raisedAt - a.raisedAt : a.status === 'resolved' ? 1 : -1);
 
-  const hasAnomaly = anomalies.length > 0;
-  const criticalCount = anomalies.filter(a => a.severity === 'CRITICAL').length;
+  const who = session ? `${session.name} (${session.role})` : 'operator';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="fade-up">
+      <PageHeader title="Early Warning & Anomalies" subtitle="Predictive warnings, anomaly detection and protection events with operator workflow" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <Stat label="Active" icon={<ShieldAlert size={13} />} value={counts.active} tone={counts.active ? 'crit' : 'ok'} />
+        <Stat label="Acknowledged" icon={<Eye size={13} />} value={counts.ack} tone={counts.ack ? 'warn' : 'fg'} />
+        <Stat label="Critical open" value={counts.critical} tone={counts.critical ? 'crit' : 'fg'} />
+        <Stat label="Resolved" icon={<CheckCircle2 size={13} />} value={counts.resolved} tone="ok" />
+      </div>
 
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <ShieldAlert size={20} color={hasAnomaly ? 'var(--color-critical)' : 'var(--color-primary)'} />
-          <h2 style={{ margin: 0, fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: '1.2rem' }}>
-            Early Warning System
-          </h2>
-          {hasAnomaly ? (
-            <span style={{
-              fontSize: '0.68rem', fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-              background: 'rgba(255,90,90,0.12)', color: 'var(--color-critical)',
-              border: '1px solid rgba(255,90,90,0.25)',
-            }}>
-              {anomalies.length} ANOMAL{anomalies.length > 1 ? 'IES' : 'Y'} DETECTED
-            </span>
-          ) : (
-            <span style={{
-              fontSize: '0.68rem', fontWeight: 700, padding: '2px 10px', borderRadius: 20,
-              background: 'rgba(32,214,123,0.1)', color: 'var(--color-primary)',
-              border: '1px solid rgba(32,214,123,0.2)',
-            }}>ALL CLEAR</span>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border border-line p-0.5 bg-surface">
+              {(['open', 'all', 'resolved'] as StatusFilter[]).map(f => (
+                <button key={f} onClick={() => setStatus(f)} className={cx('rounded-md px-3 py-1 text-xs font-medium capitalize', status === f ? 'bg-primary/15 text-primary' : 'text-muted hover:text-fg')}>{f}</button>
+              ))}
+            </div>
+            <select value={sev} onChange={e => setSev(e.target.value as Severity | 'all')} className="input w-auto py-1 text-xs" aria-label="Filter by severity">
+              <option value="all">All severities</option>
+              {(['critical', 'high', 'medium', 'low'] as Severity[]).map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+            </select>
+            <span className="text-xs text-muted ml-auto">{list.length} alert{list.length === 1 ? '' : 's'}</span>
+          </div>
+
+          {list.length === 0 && (
+            <Empty>
+              {status === 'open' ? 'No open alerts: the grid is operating within limits. Admins can inject a fault scenario to see the early-warning flow.' : 'No alerts match this filter.'}
+            </Empty>
           )}
-        </div>
-        {activeFault && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--color-critical)', fontWeight: 600 }}>
-              ⚡ {activeFault} ACTIVE
-            </span>
-            <button onClick={reset} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(32,214,123,0.1)', border: '1px solid rgba(32,214,123,0.25)',
-              borderRadius: 8, padding: '6px 14px', color: 'var(--color-primary)',
-              cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
-            }}>
-              <RotateCcw size={13} /> Reset
-            </button>
-          </div>
-        )}
-      </div>
 
-      {/* ── Workflow Flow ────────────────────────────────────────── */}
-      <GlassCard padding="12px 16px">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <FlowStep number={1} label="Real-Time Data" active />
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</div>
-          <FlowStep number={2} label="Anomaly Detection" active={hasAnomaly} />
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</div>
-          <FlowStep number={3} label="Scenario / Impact Analysis" active={!!activeScenario} />
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</div>
-          <FlowStep number={4} label="Risk Level" active={hasAnomaly || !!activeScenario} />
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>→</div>
-          <FlowStep number={5} label="AI Recommendation" active={hasAnomaly || !!activeScenario} />
-        </div>
-      </GlassCard>
-
-      {/* ── Live Telemetry KPIs ──────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <KPICard label="Solar Output" value={solar.currentPower} unit="kW" color="var(--color-solar)" icon={<Sun size={13} />} />
-        <KPICard label="Battery SOC" value={battery.soc} unit="%" color="var(--color-primary)" icon={<Battery size={13} />} />
-        <KPICard label="Total Load" value={totalLoad} unit="kW" icon={<Zap size={13} />} />
-        <KPICard label="Grid Dependency" value={gridDependency} unit="%" />
-      </div>
-
-      {/* ── Two column: Anomalies | Active Scenario Result ───────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-
-        {/* STEP 2 — Anomaly Detection */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 2px' }}>
-            Step 2 — Anomaly Detection
-          </div>
-
-          {!hasAnomaly ? (
-            <GlassCard>
-              <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-muted)' }}>
-                <div style={{ fontSize: '2rem', marginBottom: 8 }}>✓</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-primary)' }}>All Systems Normal</div>
-                <div style={{ fontSize: '0.75rem', marginTop: 6, lineHeight: 1.5 }}>
-                  IsolationForest model scanning all assets.<br />No anomalous behavior detected.
+          {list.map(a => (
+            <article key={a.id} className={cx('card p-4 fade-up border-l-4', a.status === 'resolved' ? 'border-l-ok/60 opacity-75' : a.severity === 'critical' || a.severity === 'high' ? 'border-l-crit' : a.severity === 'medium' ? 'border-l-warn' : 'border-l-info')}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SeverityBadge severity={a.severity} />
+                    <h3 className="text-sm font-semibold">{a.title}</h3>
+                    <Pill>{a.category}</Pill>
+                  </div>
+                  <div className="mt-1 text-xs text-muted">{a.asset} · raised {fmtTime(a.raisedAt)} (grid time {fmtTime(a.simAt)}){a.cleared && a.status !== 'resolved' ? ' · condition cleared' : ''}</div>
+                </div>
+                <StatusBadge status={a.status} />
+              </div>
+              <p className="mt-2 text-sm">{a.message}</p>
+              <div className="mt-2 rounded-lg bg-surface2 p-2.5 text-xs">
+                <span className="font-semibold text-primary">Recommended action: </span>{a.recommendation}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-[11px] text-muted whitespace-nowrap">Anomaly score <Bar value={a.score * 100} className="w-20" color={a.score > 0.7 ? 'rgb(var(--crit))' : 'rgb(var(--warn))'} /> <span className="num">{a.score.toFixed(2)}</span></div>
+                <div className="ml-auto flex gap-2">
+                  {a.status === 'active' && can('acknowledge') && <button onClick={() => acknowledge(a.id, who)} className="btn-ghost py-1 text-xs"><Eye size={13} /> Acknowledge</button>}
+                  {a.status !== 'resolved' && can('resolve') && <button onClick={() => resolve(a.id, who)} className="btn-primary py-1 text-xs"><CheckCircle2 size={13} /> Resolve</button>}
                 </div>
               </div>
-            </GlassCard>
-          ) : (
-            anomalies.map(a => (
-              <GlassCard key={a.id}
-                glow={a.severity === 'CRITICAL' ? 'critical' : 'none'}
-                style={{ borderColor: `${sevColor[a.severity]}30`, background: sevBg[a.severity] }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <AlertTriangle size={14} color={sevColor[a.severity]} />
-                    <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>{a.asset}</span>
-                    <span style={{
-                      fontSize: '0.62rem', padding: '2px 8px', borderRadius: 20,
-                      background: `${sevColor[a.severity]}20`, color: sevColor[a.severity], fontWeight: 700,
-                    }}>{a.severity}</span>
-                  </div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Score: {a.score.toFixed(2)}</div>
+              {(a.ackBy || a.resolvedBy) && (
+                <div className="mt-2 text-[11px] text-muted">
+                  {a.ackBy && <>Acknowledged by {a.ackBy}. </>}
+                  {a.resolvedBy && <>Resolved by {a.resolvedBy}{a.resolvedAt ? ` at ${fmtTime(a.resolvedAt)}` : ''}.</>}
                 </div>
-                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {a.type.replace(/_/g, ' ')}
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 8px' }}>{a.possibleCause}</p>
-                <div style={{ padding: '7px 10px', background: 'rgba(255,90,90,0.06)', borderRadius: 6, fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>Action:</strong> {a.recommendedAction}
-                </div>
-              </GlassCard>
-            ))
-          )}
+              )}
+            </article>
+          ))}
         </div>
 
-        {/* STEP 3–5 — Scenario / Impact / Recommendation */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 2px' }}>
-            Steps 3–5 — Impact Analysis · Risk · Recommendation
-          </div>
-
-          {!activeScenario ? (
-            <GlassCard>
-              <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-muted)' }}>
-                <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)' }}>No Scenario Active</div>
-                <div style={{ fontSize: '0.75rem', marginTop: 6 }}>Run a scenario below to see impact analysis and AI recommendation.</div>
-              </div>
-            </GlassCard>
-          ) : (
-            <>
-              <GlassCard style={{
-                borderColor: `${sevColor[activeScenario.risk]}30`,
-                background: sevBg[activeScenario.risk],
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 2 }}>{activeScenario.label}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{activeScenario.desc}</div>
-                  </div>
-                  <span style={{
-                    fontSize: '0.65rem', padding: '3px 10px', borderRadius: 20, fontWeight: 700, flexShrink: 0,
-                    background: `${sevColor[activeScenario.risk]}20`,
-                    color: sevColor[activeScenario.risk],
-                    border: `1px solid ${sevColor[activeScenario.risk]}40`,
-                  }}>
-                    {activeScenario.risk} RISK
-                  </span>
-                </div>
-
-                {/* Impact */}
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 4 }}>Impact Analysis</div>
-                  <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 6, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                    {activeScenario.impact}
-                  </div>
-                </div>
-
-                {/* Recommendation */}
-                <div>
-                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 4 }}>AI Recommendation</div>
-                  <div style={{ padding: '8px 10px', background: 'rgba(32,214,123,0.06)', border: '1px solid rgba(32,214,123,0.15)', borderRadius: 6, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                    ✅ {activeScenario.recommendation}
-                  </div>
-                </div>
-              </GlassCard>
-            </>
-          )}
+        <div className="space-y-4">
+          <FaultPanel />
+          <AnomalyScorePanel />
         </div>
       </div>
-
-      {/* ── Scenario Simulation Panel ────────────────────────────── */}
-      <div>
-        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-          Scenario Simulation — What-If Analysis
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
-          {SCENARIOS.map(s => {
-            const isActive = activeScenarioId === s.id && !!activeFault;
-            return (
-              <GlassCard key={s.id} hover
-                style={{ borderColor: isActive ? `${sevColor[s.risk]}40` : undefined }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{s.label}</div>
-                  <span style={{
-                    fontSize: '0.58rem', padding: '2px 7px', borderRadius: 20, fontWeight: 700, flexShrink: 0, marginLeft: 8,
-                    background: `${sevColor[s.risk]}15`, color: sevColor[s.risk],
-                  }}>{s.risk}</span>
-                </div>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4, margin: '0 0 10px' }}>{s.desc}</p>
-                <button
-                  onClick={() => isActive ? reset() : runScenario(s)}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    background: isActive ? 'rgba(32,214,123,0.1)' : 'rgba(255,90,90,0.08)',
-                    border: `1px solid ${isActive ? 'rgba(32,214,123,0.3)' : 'rgba(255,90,90,0.2)'}`,
-                    borderRadius: 7, padding: '7px', cursor: 'pointer',
-                    color: isActive ? 'var(--color-primary)' : 'var(--color-critical)',
-                    fontSize: '0.76rem', fontWeight: 600, transition: 'all 0.2s',
-                  }}
-                >
-                  {isActive
-                    ? <><RotateCcw size={12} /> Reset Scenario</>
-                    : <><Play size={12} /> Simulate</>
-                  }
-                </button>
-              </GlassCard>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Summary if no scenario and no anomaly ────────────────── */}
-      {!hasAnomaly && !activeScenario && (
-        <GlassCard padding="12px 16px">
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-            <strong style={{ color: 'var(--text-secondary)' }}>How it works:</strong>{' '}
-            The Early Warning System continuously monitors energy telemetry using an IsolationForest anomaly detector.
-            When abnormal behavior is detected, it triggers an impact analysis using historical scenario data and provides
-            preventive AI recommendations. Use the simulation panel above to test "what-if" scenarios proactively.
-          </div>
-        </GlassCard>
-      )}
-
     </div>
   );
 }

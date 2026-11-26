@@ -1,182 +1,75 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useUIStore } from '../../store/uiStore';
-import { useAuth } from '../../auth/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  LayoutDashboard, Globe, Sun, Battery, BarChart3,
-  Lightbulb, Cloud, ShieldAlert, Cpu, Leaf, DollarSign,
-  FileText, Bot, LogOut,
-} from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { X, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useUI } from '../../store/uiStore';
+import { useGrid } from '../../store/gridStore';
+import { NAV } from './nav';
+import Logo from '../ui/Logo';
+import { cx } from '../ui/kit';
 
-// ── Sky-blue sidebar palette ──────────────────────────────────────────────────
-const SB_BG        = '#DCEFFA';
-const SB_TEXT      = '#1A3A5C';
-const SB_MUTED     = '#4A6E8C';
-const SB_ACTIVE_BG = '#B5D9F4';
-const SB_HOVER_BG  = '#CCE6F7';
-const SB_BORDER    = '#B8D8EF';
+function NavList({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const openAlerts = useGrid(s => s.alerts.filter(a => a.status === 'active').length);
+  return (
+    <nav className="flex-1 overflow-y-auto scroll-thin px-2 py-3 space-y-0.5">
+      {NAV.map(({ to, label, icon: Icon }) => (
+        <NavLink key={to} to={to} onClick={onNavigate} title={collapsed ? label : undefined}
+          className={({ isActive }) => cx(
+            'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+            collapsed && 'justify-center px-0',
+            isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted hover:bg-surface2 hover:text-fg',
+          )}>
+          <Icon size={18} className="shrink-0" />
+          {!collapsed && <span className="truncate">{label}</span>}
+          {to === '/early-warning' && openAlerts > 0 && (
+            <span className={cx('rounded-full bg-crit text-white text-[10px] font-bold px-1.5 min-w-[18px] text-center', collapsed ? 'absolute top-0.5 right-1' : 'ml-auto')}>{openAlerts}</span>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
 
-const navItems = [
-  { to: '/dashboard',       icon: LayoutDashboard, label: 'Command Center' },
-  { to: '/digital-twin',    icon: Globe,           label: 'Digital Twin' },
-  { to: '/solar',           icon: Sun,             label: 'Solar Intelligence' },
-  { to: '/battery',         icon: Battery,         label: 'Battery Intelligence' },
-  { to: '/consumption',     icon: BarChart3,       label: 'Consumption' },
-  { to: '/weather',         icon: Cloud,           label: 'Weather Forecast' },
-  { to: '/recommendations', icon: Lightbulb,       label: 'Recommendations' },
-  { to: '/early-warning',   icon: ShieldAlert,     label: 'Early Warning' },
-  { to: '/iot',             icon: Cpu,             label: 'IoT Devices' },
-  { to: '/carbon',          icon: Leaf,            label: 'Carbon' },
-  { to: '/cost',            icon: DollarSign,      label: 'Cost' },
-  { to: '/reports',         icon: FileText,        label: 'Reports' },
-  { to: '/ai-models',       icon: Bot,             label: 'Model Center' },
-];
+function Brand({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div className={cx('flex items-center gap-2.5 h-14 px-4 border-b border-line shrink-0', collapsed && 'justify-center px-0')}>
+      <Logo size={30} />
+      {!collapsed && (
+        <div className="leading-tight">
+          <div className="font-display font-bold tracking-tight">DARPAN</div>
+          <div className="text-[10px] text-muted">Smart Grid Platform</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Sidebar() {
-  const sidebarOpen = useUIStore(s => s.sidebarOpen);
-  const navigate    = useNavigate();
-
-  // ✅ FIX: use AuthContext.onLogout so React auth state clears, then navigate
-  const { onLogout } = useAuth();
-
-  function handleSignOut() {
-    onLogout();             // clears localStorage + sets status → 'unauthenticated'
-    navigate('/login', { replace: true });
-  }
+  const collapsed = useUI(s => s.sidebarCollapsed);
+  const toggle = useUI(s => s.toggleSidebar);
+  const mobileOpen = useUI(s => s.mobileNavOpen);
+  const setMobileOpen = useUI(s => s.setMobileNavOpen);
 
   return (
-    <motion.nav
-      animate={{ width: sidebarOpen ? 232 : 60 }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        position: 'fixed', left: 0, top: 0, bottom: 0,
-        background: SB_BG,
-        borderRight: `1px solid ${SB_BORDER}`,
-        zIndex: 200,
-        overflowX: 'hidden', overflowY: 'auto',
-        display: 'flex', flexDirection: 'column',
-      }}
-      className="styled-scroll"
-    >
-      {/* Brand header */}
-      <div style={{
-        padding: sidebarOpen ? '16px 14px' : '16px 0',
-        display: 'flex', alignItems: 'center',
-        gap: 10, justifyContent: sidebarOpen ? 'flex-start' : 'center',
-        borderBottom: `1px solid ${SB_BORDER}`, flexShrink: 0,
-      }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-          background: '#FFFFFF',
-          border: `1px solid ${SB_BORDER}`,
-          overflow: 'hidden',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <img
-            src="/darpan-logo.png"
-            alt="DARPAN"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 9 }}
-          />
-        </div>
-        <AnimatePresence>
-          {sidebarOpen && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
-            >
-              <div style={{ fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: '0.92rem', color: SB_TEXT, lineHeight: 1.1, letterSpacing: '-0.01em' }}>
-                DARPAN
-              </div>
-              <div style={{ fontSize: '0.62rem', color: SB_MUTED, marginTop: 2, fontWeight: 500 }}>Energy Intelligence</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Nav items */}
-      <div style={{ flex: 1, padding: '8px 6px', overflowY: 'auto' }} className="styled-scroll">
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            title={!sidebarOpen ? label : undefined}
-            style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center',
-              gap: 10,
-              padding: '8px 10px',
-              justifyContent: sidebarOpen ? 'flex-start' : 'center',
-              textDecoration: 'none',
-              borderRadius: 8,
-              marginBottom: 2,
-              background: isActive ? SB_ACTIVE_BG : 'transparent',
-              color: isActive ? SB_TEXT : SB_MUTED,
-              transition: 'all 0.15s',
-            })}
-            onMouseEnter={e => {
-              const el = e.currentTarget as HTMLElement;
-              if (!el.style.background.includes(SB_ACTIVE_BG)) el.style.background = SB_HOVER_BG;
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget as HTMLElement;
-              if (!el.style.background.includes(SB_ACTIVE_BG)) el.style.background = 'transparent';
-            }}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon size={16} style={{ flexShrink: 0, color: isActive ? SB_TEXT : SB_MUTED }} />
-                <AnimatePresence>
-                  {sidebarOpen && (
-                    <motion.span
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                      style={{ fontSize: '0.8rem', fontWeight: isActive ? 600 : 400, whiteSpace: 'nowrap', color: isActive ? SB_TEXT : SB_MUTED }}
-                    >
-                      {label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {isActive && sidebarOpen && (
-                  <div style={{ marginLeft: 'auto', width: 4, height: 4, borderRadius: '50%', background: '#1A6FA8', flexShrink: 0 }} />
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </div>
-
-      {/* Sign out */}
-      <div style={{ padding: '12px 6px', borderTop: `1px solid ${SB_BORDER}` }}>
-        <button
-          onClick={handleSignOut}
-          title={!sidebarOpen ? 'Sign out' : undefined}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-            padding: '8px 10px', justifyContent: sidebarOpen ? 'flex-start' : 'center',
-            background: 'none', border: 'none', cursor: 'pointer',
-            borderRadius: 8, color: SB_MUTED, fontSize: '0.8rem',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => {
-            const b = e.currentTarget as HTMLButtonElement;
-            b.style.background = '#FAD7D7'; b.style.color = '#B91C1C';
-          }}
-          onMouseLeave={e => {
-            const b = e.currentTarget as HTMLButtonElement;
-            b.style.background = 'none'; b.style.color = SB_MUTED;
-          }}
-        >
-          <LogOut size={15} style={{ flexShrink: 0 }} />
-          <AnimatePresence>
-            {sidebarOpen && (
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                Sign out
-              </motion.span>
-            )}
-          </AnimatePresence>
+    <>
+      {/* Desktop */}
+      <aside className={cx('hidden lg:flex fixed inset-y-0 left-0 z-30 flex-col border-r border-line bg-surface transition-[width] duration-200', collapsed ? 'w-16' : 'w-60')}>
+        <Brand collapsed={collapsed} />
+        <NavList collapsed={collapsed} />
+        <button onClick={toggle} className="m-2 flex items-center justify-center gap-2 rounded-lg py-2 text-xs text-muted hover:bg-surface2 hover:text-fg" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          {collapsed ? <ChevronsRight size={16} /> : <><ChevronsLeft size={16} /> Collapse</>}
         </button>
+      </aside>
+
+      {/* Mobile drawer */}
+      <div className={cx('lg:hidden fixed inset-0 z-50 transition', mobileOpen ? 'pointer-events-auto' : 'pointer-events-none')}>
+        <div className={cx('absolute inset-0 bg-black/50 transition-opacity', mobileOpen ? 'opacity-100' : 'opacity-0')} onClick={() => setMobileOpen(false)} />
+        <aside className={cx('absolute inset-y-0 left-0 w-64 flex flex-col bg-surface border-r border-line transition-transform duration-200', mobileOpen ? 'translate-x-0' : '-translate-x-full')}>
+          <div className="relative">
+            <Brand collapsed={false} />
+            <button onClick={() => setMobileOpen(false)} className="absolute right-3 top-4 text-muted hover:text-fg" aria-label="Close menu"><X size={18} /></button>
+          </div>
+          <NavList collapsed={false} onNavigate={() => setMobileOpen(false)} />
+        </aside>
       </div>
-    </motion.nav>
+    </>
   );
 }

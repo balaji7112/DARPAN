@@ -1,98 +1,47 @@
-// authService.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// Single source of truth for session management.
-// Stores a lightweight token in localStorage.
-// Replace the body of `loginWithCredentials` with a real API call when ready.
-// ─────────────────────────────────────────────────────────────────────────────
+// Client-side mock auth for the demo. Sessions live in localStorage.
+// Swap `login()` for a real API call when a backend exists.
 
-const STORAGE_KEY = 'oorja_auth';
+export type Role = 'Admin' | 'Operator';
+export type Permission = 'acknowledge' | 'resolve' | 'inject_faults' | 'sim_control';
 
-export interface AuthSession {
-  email: string;
-  ts: number;
-  // Add more fields (userId, role, accessToken) when wiring the real backend
-}
+export interface Session { email: string; name: string; role: Role; ts: number; }
 
-// ── Read ─────────────────────────────────────────────────────────────────────
-export function getSession(): AuthSession | null {
+const KEY = 'darpan_session';
+const TTL = 12 * 60 * 60 * 1000;
+
+export const DEMO_ACCOUNTS: { email: string; password: string; name: string; role: Role }[] = [
+  { email: 'admin@darpan.in', password: 'Admin@123', name: 'Grid Admin', role: 'Admin' },
+  { email: 'operator@darpan.in', password: 'Operator@123', name: 'Shift Operator', role: 'Operator' },
+];
+
+const PERMISSIONS: Record<Role, Permission[]> = {
+  Admin: ['acknowledge', 'resolve', 'inject_faults', 'sim_control'],
+  Operator: ['acknowledge', 'resolve'],
+};
+
+export const can = (role: Role | undefined, p: Permission) => !!role && PERMISSIONS[role].includes(p);
+
+export function getSession(): Session | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const session = JSON.parse(raw) as AuthSession;
-    // Treat sessions older than 24 h as expired
-    if (Date.now() - session.ts > 24 * 60 * 60 * 1000) {
-      clearSession();
-      return null;
-    }
-    return session;
+    const s = JSON.parse(raw) as Session;
+    if (!s.role || Date.now() - s.ts > TTL) { localStorage.removeItem(KEY); return null; }
+    return s;
   } catch {
     return null;
   }
 }
 
-// ── Write ────────────────────────────────────────────────────────────────────
-export function saveSession(email: string): void {
-  const session: AuthSession = { email, ts: Date.now() };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+export function clearSession() {
+  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
 }
 
-// ── Clear ─────────────────────────────────────────────────────────────────────
-export function clearSession(): void {
-  localStorage.removeItem(STORAGE_KEY);
-}
-
-// ── Login ────────────────────────────────────────────────────────────────────
-// DEMO MODE: accepts demo credentials OR any valid-format email + 4+ char pw.
-// Replace this function body to call your real backend endpoint.
-//
-// Real backend example:
-//   const res = await fetch('/api/auth/login', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ email, password }),
-//     signal,
-//   });
-//   if (!res.ok) {
-//     if (res.status === 401) throw new AuthError('credentials');
-//     throw new AuthError('network');
-//   }
-//   const { token, user } = await res.json();
-//   saveSession(user.email);
-
-export class AuthError extends Error {
-  constructor(public kind: 'credentials' | 'network' | 'timeout') {
-    super(kind);
-  }
-}
-
-const DEMO_EMAIL    = 'admin@oorjasync.in';
-const DEMO_PASSWORD = 'Demo@2026';
-
-export async function loginWithCredentials(
-  email: string,
-  password: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  // Simulate network latency for demo
-  await new Promise<void>((resolve, reject) => {
-    const tid = setTimeout(resolve, 800);
-    signal?.addEventListener('abort', () => { clearTimeout(tid); reject(new AuthError('network')); });
-  });
-
-  if (signal?.aborted) throw new AuthError('network');
-
-  const emailOk = email.trim().toLowerCase();
-  const isDemo  = emailOk === DEMO_EMAIL && password === DEMO_PASSWORD;
-  const isAny   = emailOk.includes('@') && emailOk.split('@')[1]?.includes('.') && password.length >= 4;
-
-  if (!isDemo && !isAny) {
-    throw new AuthError('credentials');
-  }
-
-  saveSession(email.trim());
-}
-
-// ── Logout ───────────────────────────────────────────────────────────────────
-export function logout(): void {
-  clearSession();
+export async function login(email: string, password: string): Promise<Session> {
+  await new Promise(r => setTimeout(r, 500)); // simulate network latency
+  const acct = DEMO_ACCOUNTS.find(a => a.email === email.trim().toLowerCase() && a.password === password);
+  if (!acct) throw new Error('Invalid email or password.');
+  const session: Session = { email: acct.email, name: acct.name, role: acct.role, ts: Date.now() };
+  try { localStorage.setItem(KEY, JSON.stringify(session)); } catch { /* private mode: session lasts for this tab only */ }
+  return session;
 }

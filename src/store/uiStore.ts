@@ -1,81 +1,38 @@
 import { create } from 'zustand';
 
-export interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'warning' | 'critical' | 'success';
-  timestamp: number;
-  asset?: string;
-  read: boolean;
+export type Theme = 'dark' | 'light';
+
+function readTheme(): Theme {
+  try { return localStorage.getItem('darpan_theme') === 'light' ? 'light' : 'dark'; } catch { return 'dark'; }
 }
 
-interface UIStoreState {
-  sidebarOpen: boolean;
+interface UIState {
+  sidebarCollapsed: boolean;
+  mobileNavOpen: boolean;
   commandPaletteOpen: boolean;
-  inspectorAsset: string | null;
-  notifications: Notification[];
-  activeModal: string | null;
   copilotOpen: boolean;
-  currentTheme: 'dark';
-
-  setSidebarOpen: (open: boolean) => void;
+  theme: Theme;
   toggleSidebar: () => void;
+  setMobileNavOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
-  setInspectorAsset: (asset: string | null) => void;
-  addNotification: (n: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
-  markAllRead: () => void;
-  setActiveModal: (modal: string | null) => void;
   setCopilotOpen: (open: boolean) => void;
+  toggleTheme: () => void;
 }
 
-export const useUIStore = create<UIStoreState>((set) => ({
-  sidebarOpen: true,
+export const useUI = create<UIState>()((set, get) => ({
+  sidebarCollapsed: false,
+  mobileNavOpen: false,
   commandPaletteOpen: false,
-  inspectorAsset: null,
-  notifications: [
-    {
-      id: 'n-1',
-      title: 'System Online',
-      message: 'DARPAN demo simulation started. All systems operational.',
-      type: 'success',
-      timestamp: Date.now() - 60000,
-      read: false,
-    },
-    {
-      id: 'n-2',
-      title: 'Battery Optimized',
-      message: 'Charging scheduled based on solar forecast window.',
-      type: 'info',
-      timestamp: Date.now() - 300000,
-      asset: 'BATTERY',
-      read: false,
-    },
-  ],
-  activeModal: null,
   copilotOpen: false,
-  currentTheme: 'dark',
-
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
+  theme: readTheme(),
+  toggleSidebar: () => set(s => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  setMobileNavOpen: (open) => set({ mobileNavOpen: open }),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
-  setInspectorAsset: (asset) => set({ inspectorAsset: asset }),
-
-  addNotification: (n) => {
-    const notification: Notification = {
-      ...n,
-      id: `n-${Date.now()}`,
-      timestamp: Date.now(),
-      read: false,
-    };
-    set(s => ({ notifications: [notification, ...s.notifications].slice(0, 20) }));
-  },
-
-  markAllRead: () => set(s => ({
-    notifications: s.notifications.map(n => ({ ...n, read: true })),
-  })),
-
-  setActiveModal: (modal) => set({ activeModal: modal }),
   setCopilotOpen: (open) => set({ copilotOpen: open }),
+  toggleTheme: () => {
+    const theme: Theme = get().theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('darpan_theme', theme); } catch { /* storage unavailable */ }
+    set({ theme });
+  },
 }));
-

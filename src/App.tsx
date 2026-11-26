@@ -1,151 +1,79 @@
-import React, { useEffect, useRef, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { useEnergyStore } from './store/energyStore';
-import { useUIStore } from './store/uiStore';
-import AppLayout from './components/layout/AppLayout';
-import CommandCenter from './pages/Dashboard/CommandCenter';
-import CommandPalette from './components/ui/CommandPalette';
-import AICopilot from './components/ai/AICopilot';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute, PublicOnlyRoute } from './components/auth/RouteGuards';
+import AppLayout, { PageSpinner } from './components/layout/AppLayout';
+import { useGrid, TICK_MS } from './store/gridStore';
+import { useUI } from './store/uiStore';
 
-// ── Lazy-load login + all non-critical pages ──────────────────────────────────
-const LoginPage          = lazy(() => import('./pages/Login/LoginPage'));
-const DigitalTwinPage    = lazy(() => import('./pages/DigitalTwin/DigitalTwinPage'));
-const SolarPage          = lazy(() => import('./pages/Solar/SolarPage'));
-const BatteryPage        = lazy(() => import('./pages/Battery/BatteryPage'));
-const ConsumptionPage    = lazy(() => import('./pages/Consumption/ConsumptionPage'));
-const RecommendationsPage= lazy(() => import('./pages/Recommendations/RecommendationsPage'));
-const WeatherForecastPage= lazy(() => import('./pages/Weather/WeatherForecastPage'));
-const EarlyWarningPage   = lazy(() => import('./pages/EarlyWarning/EarlyWarningPage'));
-const IoTPage            = lazy(() => import('./pages/IoT/IoTPage'));
-const CarbonPage         = lazy(() => import('./pages/Carbon/CarbonPage'));
-const CostPage           = lazy(() => import('./pages/Cost/CostPage'));
-const ReportsPage        = lazy(() => import('./pages/Reports/ReportsPage'));
-const AIModelCenterPage  = lazy(() => import('./pages/AIModels/AIModelCenterPage'));
+const LoginPage = lazy(() => import('./pages/Login/LoginPage'));
+const CommandCenter = lazy(() => import('./pages/Dashboard/CommandCenter'));
+const GenerationPage = lazy(() => import('./pages/Generation/GenerationPage'));
+const StoragePage = lazy(() => import('./pages/Storage/StoragePage'));
+const GridPage = lazy(() => import('./pages/Grid/GridPage'));
+const ForecastPage = lazy(() => import('./pages/Forecast/ForecastPage'));
+const EarlyWarningPage = lazy(() => import('./pages/EarlyWarning/EarlyWarningPage'));
+const ReportsPage = lazy(() => import('./pages/Reports/ReportsPage'));
+const ArchitecturePage = lazy(() => import('./pages/Architecture/ArchitecturePage'));
+const AICopilot = lazy(() => import('./components/ai/AICopilot'));
+const CommandPalette = lazy(() => import('./components/ui/CommandPalette'));
 
-// Minimal fallback — matches bg-primary, no flash ─────────────────────────────
-const PageFallback = () => (
-  <div style={{ flex: 1, background: 'var(--bg-primary)' }} />
-);
+/** Drives the telemetry simulator: one tick every 3 s while running. */
+function Simulator() {
+  const running = useGrid(s => s.running);
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => useGrid.getState().advance(), TICK_MS);
+    return () => clearInterval(id);
+  }, [running]);
+  return null;
+}
 
-// Page transition — lightweight, 200 ms ───────────────────────────────────────
-const pageVariants = {
-  initial: { opacity: 0, y: 6 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] } },
-  exit:    { opacity: 0,        transition: { duration: 0.15 } },
-};
+function Shortcuts() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        useUI.getState().setCommandPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  return null;
+}
 
-function AnimatedRoutes() {
-  const location = useLocation();
-
+function Overlays() {
+  const palette = useUI(s => s.commandPaletteOpen);
+  const copilot = useUI(s => s.copilotOpen);
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        style={{ width: '100%', height: '100%' }}
-      >
-        <Routes location={location}>
-          {/* ── Root: session check → dashboard or login ── */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-          {/* ── Public-only: /login (redirects to dashboard if already signed in) ── */}
-          <Route
-            path="/login"
-            element={
-              <PublicOnlyRoute>
-                <Suspense fallback={<PageFallback />}>
-                  <LoginPage />
-                </Suspense>
-              </PublicOnlyRoute>
-            }
-          />
-
-          {/* ── Protected dashboard routes ── */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard"      element={<CommandCenter />} />
-            <Route path="/digital-twin"   element={<Suspense fallback={<PageFallback />}><DigitalTwinPage /></Suspense>} />
-            <Route path="/solar"          element={<Suspense fallback={<PageFallback />}><SolarPage /></Suspense>} />
-            <Route path="/battery"        element={<Suspense fallback={<PageFallback />}><BatteryPage /></Suspense>} />
-            <Route path="/consumption"    element={<Suspense fallback={<PageFallback />}><ConsumptionPage /></Suspense>} />
-            <Route path="/weather"        element={<Suspense fallback={<PageFallback />}><WeatherForecastPage /></Suspense>} />
-            <Route path="/recommendations"element={<Suspense fallback={<PageFallback />}><RecommendationsPage /></Suspense>} />
-            <Route path="/early-warning"  element={<Suspense fallback={<PageFallback />}><EarlyWarningPage /></Suspense>} />
-            <Route path="/iot"            element={<Suspense fallback={<PageFallback />}><IoTPage /></Suspense>} />
-            <Route path="/carbon"         element={<Suspense fallback={<PageFallback />}><CarbonPage /></Suspense>} />
-            <Route path="/cost"           element={<Suspense fallback={<PageFallback />}><CostPage /></Suspense>} />
-            <Route path="/reports"        element={<Suspense fallback={<PageFallback />}><ReportsPage /></Suspense>} />
-            <Route path="/ai-models"      element={<Suspense fallback={<PageFallback />}><AIModelCenterPage /></Suspense>} />
-            {/* Redirects for removed/merged routes */}
-            <Route path="/anomalies"      element={<Navigate to="/early-warning" replace />} />
-            <Route path="/scenarios"      element={<Navigate to="/early-warning" replace />} />
-            <Route path="/forecast"       element={<Navigate to="/weather" replace />} />
-            <Route path="/optimization"   element={<Navigate to="/dashboard" replace />} />
-            <Route path="/architecture"   element={<Navigate to="/dashboard" replace />} />
-            <Route path="/admin"          element={<Navigate to="/dashboard" replace />} />
-          </Route>
-
-          {/* ── Catch-all → /login (will redirect to /dashboard if authenticated) ── */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </motion.div>
-    </AnimatePresence>
+    <Suspense fallback={null}>
+      {palette && <CommandPalette />}
+      {copilot && <AICopilot />}
+    </Suspense>
   );
 }
 
-// ── Demo data simulator (unchanged) ──────────────────────────────────────────
-function DemoSimulator() {
-  const tick = useEnergyStore(s => s.tick);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    intervalRef.current = setInterval(tick, 3000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [tick]);
-
-  return null;
-}
-
-// ── Keyboard shortcuts (unchanged) ───────────────────────────────────────────
-function KeyboardShortcuts() {
-  const setCommandPaletteOpen = useUIStore(s => s.setCommandPaletteOpen);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setCommandPaletteOpen(true); }
-      if (e.key === 'Escape') setCommandPaletteOpen(false);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [setCommandPaletteOpen]);
-
-  return null;
-}
-
-// ── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const commandPaletteOpen = useUIStore(s => s.commandPaletteOpen);
-  const copilotOpen        = useUIStore(s => s.copilotOpen);
-
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
-        <DemoSimulator />
-        <KeyboardShortcuts />
-        <AnimatedRoutes />
-        {commandPaletteOpen && <CommandPalette />}
-        {copilotOpen && <AICopilot />}
+        <Simulator />
+        <Routes>
+          <Route path="/login" element={<PublicOnlyRoute><Suspense fallback={<PageSpinner />}><LoginPage /></Suspense></PublicOnlyRoute>} />
+          <Route element={<ProtectedRoute><Shortcuts /><AppLayout /><Overlays /></ProtectedRoute>}>
+            <Route path="/dashboard" element={<CommandCenter />} />
+            <Route path="/generation" element={<GenerationPage />} />
+            <Route path="/storage" element={<StoragePage />} />
+            <Route path="/grid" element={<GridPage />} />
+            <Route path="/forecast" element={<ForecastPage />} />
+            <Route path="/early-warning" element={<EarlyWarningPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/architecture" element={<ArchitecturePage />} />
+          </Route>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </AuthProvider>
     </BrowserRouter>
   );

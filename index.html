@@ -1,18 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/darpan-logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DARPAN | Energy Intelligence Platform</title>
-    <meta name="description" content="DARPAN — Renewable energy digital twin platform for smart campus management." />
+    <meta name="theme-color" content="#060B14" />
+    <title>DARPAN | Hybrid HVAC–HVDC Smart Grid Platform</title>
+    <meta name="description" content="DARPAN: real-time monitoring, AI/ML forecasting and an operator copilot for a hybrid HVAC–HVDC renewable smart grid." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <!-- Critical inline: must match --bg-primary exactly to prevent flash -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      // Apply the saved theme before first paint to avoid a flash.
+      try { var t = localStorage.getItem('darpan_theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+    </script>
     <style>
-      html, body { margin: 0; padding: 0; background: #F5F6F8; color: #111827; font-family: 'Inter', system-ui, sans-serif; overflow-x: hidden; }
-      #root { min-height: 100vh; background: #F5F6F8; }
+      html, body { margin: 0; background: #060B14; }
+      html[data-theme='light'], html[data-theme='light'] body { background: #F4F7FB; }
     </style>
   </head>
   <body>
