@@ -82,7 +82,7 @@ export default function ForecastPage() {
             <div><dt className="label">Solar</dt><dd className="mt-0.5">{models.solar}</dd></div>
             <div><dt className="label">Demand</dt><dd className="mt-0.5">{models.demand}</dd></div>
             <div><dt className="label">Anomaly detection</dt><dd className="mt-0.5">{source === 'ml' ? 'IsolationForest (ML service)' : 'Residual z-score, Isolation-Forest-style scoring (client)'}</dd></div>
-            <div><dt className="label">Features</dt><dd className="mt-0.5 text-muted text-xs">Hour of day (sin/cos), day of week, temperature, cloud cover, lagged load</dd></div>
+            <div><dt className="label">Features</dt><dd className="mt-0.5 text-muted text-xs">Hour of day & day of year (sin/cos), day of week, temperature, cloud cover, clear-sky index</dd></div>
             <div><dt className="label">Training data</dt><dd className="mt-0.5 text-muted text-xs">Synthetic: 1 year of hourly telemetry generated from the DARPAN grid model with weather noise</dd></div>
             {metrics && (
               <div>
