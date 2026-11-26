@@ -1,0 +1,11 @@
+# Optional: one-click deploy of the ML service on Render (Blueprint).
+services:
+  - type: web
+    name: darpan-ml
+    runtime: docker
+    rootDir: ml-service
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: "*"
