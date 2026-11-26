@@ -28,7 +28,7 @@ function SessionLoader() {
         </svg>
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 800, fontSize: '1.2rem', color: '#1E3A5F', letterSpacing: '-0.02em' }}>OORJA-SYNC</div>
+        <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 800, fontSize: '1.2rem', color: '#1A3A5C', letterSpacing: '-0.02em' }}>DARPAN</div>
         <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 4 }}>Energy Intelligence Platform</div>
       </div>
       <div style={{ display: 'flex', gap: 6 }}>

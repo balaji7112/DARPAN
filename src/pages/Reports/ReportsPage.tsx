@@ -202,7 +202,7 @@ export default function ReportsPage() {
 
       {/* ── Oorja Score ──────────────────────────────────────────── */}
       <GlassCard>
-        <SectionTitle>OORJA Sync Score</SectionTitle>
+        <SectionTitle>DARPAN Score</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
           {[
             { label: 'Overall Score', value: oorjaSyncScore.total, color: 'var(--color-primary)' },
@@ -293,9 +293,10 @@ export default function ReportsPage() {
 
       {/* ── Footer Note ──────────────────────────────────────────── */}
       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textAlign: 'center', paddingBottom: 8 }}>
-        Report generated from live simulation data · OORJA SYNC · {generatedAt}
+        Report generated from live simulation data · DARPAN · {generatedAt}
       </div>
 
     </div>
   );
 }
+

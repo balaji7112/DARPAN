@@ -11,7 +11,7 @@ export default function RecommendationsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
         <Lightbulb size={20} color="var(--color-solar)" />
-        <h2 style={{ margin: 0, fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: '1.2rem' }}>OORJA Intelligence Recommendations</h2>
+        <h2 style={{ margin: 0, fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: '1.2rem' }}>DARPAN Intelligence Recommendations</h2>
         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{recommendations.filter(r => r.status === 'PENDING').length} pending</span>
       </div>
       {recommendations.length === 0 && (

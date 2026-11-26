@@ -1,6 +1,6 @@
 /* ================================================================
-   OORJA SYNC — Professional Light Design System
-   Clean white / light-gray SaaS dashboard theme
+   DARPAN — Professional Light Design System
+   Clean greyish-white SaaS dashboard theme
    ================================================================ */
 @tailwind base;
 @tailwind components;
@@ -8,7 +8,7 @@
 
 :root {
   /* ── Backgrounds ── */
-  --bg-primary:   #F5F6FA;    /* very light lavender-gray page bg */
+  --bg-primary:   #F5F6F8;    /* subtle greyish-white page bg      */
   --bg-secondary: #FFFFFF;    /* pure white card / surface         */
   --bg-surface:   #FFFFFF;
   --bg-card:      #FFFFFF;

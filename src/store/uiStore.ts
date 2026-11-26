@@ -37,7 +37,7 @@ export const useUIStore = create<UIStoreState>((set) => ({
     {
       id: 'n-1',
       title: 'System Online',
-      message: 'OORJA SYNC demo simulation started. All systems operational.',
+      message: 'DARPAN demo simulation started. All systems operational.',
       type: 'success',
       timestamp: Date.now() - 60000,
       read: false,
@@ -78,3 +78,4 @@ export const useUIStore = create<UIStoreState>((set) => ({
   setActiveModal: (modal) => set({ activeModal: modal }),
   setCopilotOpen: (open) => set({ copilotOpen: open }),
 }));
+

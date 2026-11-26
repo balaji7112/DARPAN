@@ -70,7 +70,7 @@ function buildReportHTML(data: ReportData): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Weather Forecast Report — OORJA SYNC</title>
+  <title>Weather Forecast Report — DARPAN</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -195,7 +195,7 @@ function buildReportHTML(data: ReportData): string {
 
   <!-- Header -->
   <div class="header">
-    <div class="header-badge">⚡ OORJA SYNC · Energy Intelligence Platform</div>
+    <div class="header-badge">⚡ DARPAN · Energy Intelligence Platform</div>
     <h1>Weather Forecast Report</h1>
     <div class="sub">Energy & Climate Analysis — Smart Campus, Bhopal</div>
     <div class="header-meta">
@@ -292,7 +292,7 @@ function buildReportHTML(data: ReportData): string {
 
   <!-- Footer -->
   <div class="footer">
-    <span>OORJA SYNC · Smart Energy Intelligence Platform · SIH 2026</span>
+    <span>DARPAN · Smart Energy Intelligence Platform · </span>
     <span>Generated: ${dateStr}, ${timeStr} IST</span>
     <span>Data: Simulation-based forecast · For demonstration purposes</span>
   </div>
@@ -557,3 +557,4 @@ export default function WeatherForecastPage() {
     </div>
   );
 }
+

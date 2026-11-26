@@ -43,11 +43,11 @@ export default function TopBar() {
 
       {/* Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', boxShadow: '0 2px 6px rgba(99,102,241,0.3)' }}>
-          <img src="/logo.png" alt="OORJA SYNC" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <div style={{ width: 28, height: 28, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: '#DCEFFA', border: '1px solid #B8D8EF', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+          <img src="/darpan-logo.png" alt="DARPAN" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
         <span style={{ fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: '0.92rem', color: '#111827', letterSpacing: '-0.01em' }}>
-          OORJA SYNC
+          DARPAN
         </span>
       </div>
 

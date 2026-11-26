@@ -136,10 +136,10 @@ export default function LandingPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 4px 12px rgba(59,130,246,0.25)',
           }}>
-            <img src="/logo.png" alt="OORJA SYNC" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+            <img src="/logo.png" alt="DARPAN" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
           </div>
           <div>
-            <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.02em' }}>OORJA SYNC</div>
+            <div style={{ fontFamily: 'Space Grotesk', fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.02em' }}>DARPAN</div>
             <div style={{ fontSize: '0.63rem', color: 'var(--text-muted)' }}>Energy Intelligence Platform</div>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function LandingPage() {
           borderRadius: 8, padding: '6px 16px', textAlign: 'center',
         }}>
           <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--color-saffron)', letterSpacing: '0.1em' }}>SMART INDIA HACKATHON</div>
-          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-saffron)' }}>SIH 2026</div>
+          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-saffron)' }}></div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -285,3 +285,4 @@ export default function LandingPage() {
     </div>
   );
 }
+
